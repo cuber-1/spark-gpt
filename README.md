@@ -23,6 +23,11 @@ peak PyTorch allocation. At that rate, 4.5B tokens takes about 5.4 uninterrupted
 evaluation, checkpoint, and failure-recovery overhead. The budget is deliberately based on a
 measured training step, not the Spark's advertised low-precision inference peak.
 
+The first full 304M sanity run then processed **8,388,608 non-repeated FineWeb-Edu tokens** at an
+average **9,839 tokens/s**. Training loss fell from 10.60 to 7.49 and held-out validation loss fell
+from 8.56 at the first gate to 7.47 at completion. The raw record is in
+[`benchmarks/gb10_300m_sanity_2026-08-24.json`](benchmarks/gb10_300m_sanity_2026-08-24.json).
+
 ## Architecture
 
 The main config in [`configs/spark_300m.toml`](configs/spark_300m.toml) uses:
