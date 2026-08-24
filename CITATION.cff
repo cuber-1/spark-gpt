@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: SparkGPT
+message: "If this repository helped your work, please cite the repository and exact Git commit."
+type: software
+authors:
+  - family-names: cuber-1
+repository-code: "https://github.com/cuber-1/spark-gpt"
+license: MIT
+version: 0.1.0
+date-released: 2026-08-24

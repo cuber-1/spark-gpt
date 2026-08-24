@@ -1,0 +1,28 @@
+Spark is a small language model learning to predict the next token.
+The model reads a sequence and learns which token is likely to follow.
+Attention lets every position use the positions that came before it.
+Causal masking keeps each position from looking into the future.
+An embedding turns a token identifier into a vector of numbers.
+Normalization helps signals stay stable while the network learns.
+The optimizer changes model weights to reduce prediction error.
+A checkpoint records enough state to continue an interrupted run.
+Validation data measures progress on text the optimizer did not see.
+Reproducible experiments record code, configuration, data, and seeds.
+Small tests catch mistakes before a long and expensive training run.
+The DGX Spark provides one GPU and a large pool of coherent memory.
+Memory capacity does not guarantee that a workload will finish quickly.
+Measured tokens per second determine the honest one-week token budget.
+Spark is a small language model learning to predict the next token.
+The model reads a sequence and learns which token is likely to follow.
+Attention lets every position use the positions that came before it.
+Causal masking keeps each position from looking into the future.
+An embedding turns a token identifier into a vector of numbers.
+Normalization helps signals stay stable while the network learns.
+The optimizer changes model weights to reduce prediction error.
+A checkpoint records enough state to continue an interrupted run.
+Validation data measures progress on text the optimizer did not see.
+Reproducible experiments record code, configuration, data, and seeds.
+Small tests catch mistakes before a long and expensive training run.
+The DGX Spark provides one GPU and a large pool of coherent memory.
+Memory capacity does not guarantee that a workload will finish quickly.
+Measured tokens per second determine the honest one-week token budget.
