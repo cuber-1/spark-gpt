@@ -17,11 +17,12 @@ from scratch and uses a modern RMSNorm + RoPE + GQA + SwiGLU architecture.
 | From scratch | 7,986,253,824 | Architecture sizing only; badly undertrained in one week |
 | Pretrained adaptation | 8B class | Practical LoRA/SFT or domain continued-pretraining lane |
 
-On this repository's NVIDIA GB10, a real BF16 forward/backward/AdamW benchmark at batch 8 and
-context 2,048 measured **9,666 tokens/s**, **17.64 estimated training TFLOP/s**, and **34.32 GB**
-peak PyTorch allocation. At that rate, 4.5B tokens takes about 5.4 uninterrupted days before data,
-evaluation, checkpoint, and failure-recovery overhead. The budget is deliberately based on a
-measured training step, not the Spark's advertised low-precision inference peak.
+On this repository's NVIDIA GB10, a compiled BF16 forward/backward/AdamW preflight at batch 8 and
+context 2,048 measured **16,439 tokens/s**, **30.00 estimated training TFLOP/s**, and **23.24 GB**
+peak PyTorch allocation over five measured steps. That puts 4.5B tokens near 3.2 uninterrupted days
+before evaluation, checkpoint, and failure-recovery overhead. A longer eager sanity run measured
+9,839 tokens/s. The budget is based on measured training work, not the Spark's advertised
+low-precision inference peak.
 
 The first full 304M sanity run then processed **8,388,608 non-repeated FineWeb-Edu tokens** at an
 average **9,839 tokens/s**. Training loss fell from 10.60 to 7.49 and held-out validation loss fell
@@ -100,20 +101,44 @@ spark-gpt prepare \
   --val-fraction 0.002
 ```
 
+For the week-long FineWeb-Edu run, use the resumable pinned-snapshot workflow rather than a live
+network stream:
+
+```bash
+python scripts/download_fineweb.py
+python scripts/prepare_fineweb.py \
+  --tokenizer tokenizers/spark-32k.model \
+  --local-parquet-root data/source/fineweb-edu-10BT/sample/10BT \
+  --output data/fineweb_edu \
+  --revision 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9 \
+  --max-tokens 4600000000
+```
+
 Do not treat a dataset name as a license. Pin the dataset revision, save its manifest, record every
 filter, and review terms before publishing weights. See [`docs/data.md`](docs/data.md).
 
 ## Train, benchmark, and resume
+
+On the GB10, compiled training needs Python development headers and CUDA 13's assembler. Confirm
+that `Python.h` is installed, then point Triton at the system CUDA toolkit before benchmarking:
+
+```bash
+export TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas
+```
 
 ```bash
 # Re-measure this exact machine before locking the token budget.
 spark-gpt benchmark \
   --config configs/spark_300m.toml \
   --batch-size 8 \
-  --sequence-length 2048
+  --sequence-length 2048 \
+  --compile
 
 # Main run (about 4.5B tokens with the checked-in config).
 spark-gpt train --config configs/spark_300m.toml
+
+# DGX Spark launcher: selects CUDA 13 ptxas and resumes last.pt after transient failures.
+SPARKGPT_PYTHON=/path/to/cuda-pytorch/bin/python scripts/run_spark_300m.sh
 
 # Checkpoints include model, optimizer, RNG, config, and data-sampler state.
 spark-gpt train \

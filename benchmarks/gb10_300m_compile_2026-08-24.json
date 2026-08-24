@@ -1,0 +1,25 @@
+{
+  "kind": "synthetic-forward-backward-adamw",
+  "parameters": 304137216,
+  "batch_size": 8,
+  "sequence_length": 2048,
+  "warmup_steps": 2,
+  "measured_steps": 5,
+  "compiled": true,
+  "seconds_per_step": 0.9966719219992228,
+  "tokens_per_second": 16438.70930680515,
+  "estimated_training_tflops": 29.997739699230046,
+  "peak_memory_bytes": 23244732416,
+  "torch": "2.9.0+cu130",
+  "device": "NVIDIA GB10",
+  "compiler_environment": {
+    "triton_ptxas": "/usr/local/cuda/bin/ptxas",
+    "ptxas_version": "13.0.88",
+    "python_development_headers": "3.12.3-1ubuntu0.15"
+  },
+  "notes": [
+    "TRITON_PTXAS_PATH selected CUDA 13 because Triton's bundled CUDA 12.8 ptxas rejects sm_121a.",
+    "Python development headers were extracted locally because this host does not provide passwordless sudo.",
+    "This short synthetic preflight excludes evaluation and checkpoint overhead."
+  ]
+}

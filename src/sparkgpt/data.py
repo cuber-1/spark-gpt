@@ -60,6 +60,10 @@ class SentencePieceTokenizer:
     def encode(self, text: str) -> list[int]:
         return list(self._processor.encode(text, out_type=int))
 
+    def encode_batch(self, texts: Sequence[str]) -> list[list[int]]:
+        """Encode a document batch without paying the Python call cost per document."""
+        return [list(token_ids) for token_ids in self._processor.encode(list(texts), out_type=int)]
+
     def decode(self, token_ids: Sequence[int]) -> str:
         return self._processor.decode(list(token_ids))
 

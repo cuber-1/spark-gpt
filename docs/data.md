@@ -34,21 +34,52 @@ sampling caused by random windows with replacement.
 The code never downloads a corpus implicitly. Downloading is kept separate so users must make an
 explicit data-source and licensing decision.
 
-## FineWeb-Edu helper
+## FineWeb-Edu helpers
 
-The optional helper scripts resolve and record the current immutable Hugging Face dataset revision:
+For a serious run, download the pinned 10BT snapshot first. Hugging Face's snapshot downloader
+resumes interrupted files and verifies its content-addressed artifacts:
+
+```bash
+python scripts/download_fineweb.py
+```
+
+Then pack 4.6B tokens locally with deterministic source ordering and a document-level validation
+split:
+
+```bash
+python scripts/prepare_fineweb.py \
+  --tokenizer tokenizers/spark-32k.model \
+  --local-parquet-root data/source/fineweb-edu-10BT/sample/10BT \
+  --output data/fineweb_edu \
+  --revision 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9 \
+  --max-tokens 4600000000
+```
+
+The local preparer records every Parquet SHA-256 and saves an atomic `resume.json` at each fsynced
+shard boundary. After an interruption, rerun the identical command; extra partial output is
+truncated to the verified boundary before packing resumes. Completed token files are never
+overwritten.
+
+Use a new output directory for every distinct preparation. Resume identity binds the resolved
+source root, ordered source paths and hashes, tokenizer metadata, revision, token limit, validation
+fraction, and seed. Moving or changing any of them requires another output directory. Treat
+`resume.json`, `train.bin.partial`, and `val.bin.partial` as one recovery unit and never hand-edit or
+delete only part of it; the current shard may safely replay after recovery. A complete output has
+`meta.json`, `train.bin`, and `val.bin` and no `resume.json`. If the snapshot ends below the requested
+token limit, preparation deliberately fails while retaining recovery state.
+
+The streaming helpers remain useful for small tokenizer and pipeline samples:
 
 ```bash
 python scripts/sample_fineweb.py --max-characters 50000000
 spark-gpt train-tokenizer --input data/tokenizer_sample.txt \
   --output-prefix tokenizers/spark-32k --vocab-size 32768
 python scripts/prepare_fineweb.py --tokenizer tokenizers/spark-32k.model \
-  --max-tokens 4600000000
+  --output data/fineweb_stream_sample --max-tokens 10000000
 ```
 
-`prepare_fineweb.py` refuses to overwrite completed token files. On interruption it keeps `.partial`
-files for diagnosis, but v1 does not resume them; remove only those explicit partial files before a
-fresh attempt.
+Remote streaming retains `.partial` files for diagnosis but is intentionally not resumable. Use the
+local snapshot path for multi-billion-token preparation.
 
 Some `datasets`/PyArrow builds hit the open
 [`huggingface/datasets#7566`](https://github.com/huggingface/datasets/issues/7566) native-thread crash
