@@ -1,0 +1,35 @@
+[model]
+vocab_size = 256
+context_length = 64
+n_layer = 4
+n_head = 4
+n_kv_head = 2
+n_embd = 128
+intermediate_size = 352
+dropout = 0.0
+rope_theta = 10000.0
+norm_eps = 1e-5
+bias = false
+tie_embeddings = true
+
+[training]
+data_dir = "data/demo"
+out_dir = "runs/smoke"
+seed = 1337
+device = "auto"
+dtype = "bfloat16"
+compile = false
+batch_size = 8
+gradient_accumulation_steps = 1
+max_steps = 40
+learning_rate = 0.001
+min_lr = 0.0001
+warmup_steps = 4
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+eval_interval = 20
+eval_batches = 5
+log_interval = 1
+checkpoint_interval = 20

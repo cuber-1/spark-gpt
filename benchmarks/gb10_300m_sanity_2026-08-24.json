@@ -1,0 +1,34 @@
+{
+  "date": "2026-08-24",
+  "command": "spark-gpt train --config configs/spark_300m_sanity.toml",
+  "git_commit": "66fc933d682d309c415ea80d9a961baa78c9b246",
+  "parameters": 304137216,
+  "training_tokens": 8388608,
+  "optimizer_steps": 32,
+  "first_training_loss": 10.595050930976868,
+  "final_training_loss": 7.490574479103088,
+  "average_tokens_per_second": 9838.921002878504,
+  "evaluations": [
+    {"step": 8, "tokens": 2097152, "validation_loss": 8.562257766723633},
+    {"step": 16, "tokens": 4194304, "validation_loss": 7.494208812713623},
+    {"step": 24, "tokens": 6291456, "validation_loss": 7.494758605957031},
+    {"step": 32, "tokens": 8388608, "validation_loss": 7.472682952880859}
+  ],
+  "data": {
+    "source": "HuggingFaceFW/fineweb-edu",
+    "dataset_revision": "87f09149ef4734204d70ed1d046ddc9ca3f2b8f9",
+    "train_tokens_available": 10203728,
+    "validation_tokens_available": 101978,
+    "tokenizer_sha256": "a3b6d399d72feef9e02f203adbbd5c1eada75d7f0c27918aae7f591193f985e7"
+  },
+  "environment": {
+    "torch": "2.13.0+cu130",
+    "device": "NVIDIA GB10",
+    "precision": "bfloat16",
+    "compile": false
+  },
+  "artifacts": {
+    "best_checkpoint_bytes": 3649978595,
+    "last_checkpoint_bytes": 3649978595
+  }
+}

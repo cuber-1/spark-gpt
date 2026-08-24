@@ -1,63 +1,188 @@
 # SparkGPT
 
-A learning project to build and train a small decoder-only language model on one NVIDIA
-DGX Spark.
+SparkGPT is an original, readable GPT training stack built for one NVIDIA DGX Spark. The primary
+goal is to train a useful **304M-parameter decoder-only model from scratch** while exposing every
+important part of the pipeline: tokenization, packed data, attention, optimization, evaluation,
+checkpointing, and generation.
 
-This repository intentionally starts without an implementation. The owner is building each
-component to understand the complete language-model pipeline rather than beginning with a
-finished training framework.
+This is a serious learning and engineering project, not a claim that one workstation can reproduce
+a frontier model. NanoGPT inspired the learn-by-building approach; this implementation is written
+from scratch and uses a modern RMSNorm + RoPE + GQA + SwiGLU architecture.
 
-## Initial target
+## What is realistic in one week?
 
-- Approximately 250–300 million parameters
-- Decoder-only Transformer
-- 32K-token vocabulary
-- 2,048-token context length
-- BF16 training on one NVIDIA GB10
-- Approximately 5 billion pretraining tokens
-- FineWeb-Edu for initial pretraining experiments
-- A small supervised fine-tuning stage after pretraining
+| Lane | Parameters | One-week outcome |
+| --- | ---: | --- |
+| From scratch | 304,137,216 | Primary target: roughly 4.5B well-documented tokens |
+| From scratch | 7,986,253,824 | Architecture sizing only; badly undertrained in one week |
+| Pretrained adaptation | 8B class | Practical LoRA/SFT or domain continued-pretraining lane |
 
-The exact architecture and training budget will be selected after small-scale throughput and
-memory benchmarks.
+On this repository's NVIDIA GB10, a compiled BF16 forward/backward/AdamW preflight at batch 8 and
+context 2,048 measured **16,439 tokens/s**, **30.00 estimated training TFLOP/s**, and **23.24 GB**
+peak PyTorch allocation over five measured steps. That puts 4.5B tokens near 3.2 uninterrupted days
+before evaluation, checkpoint, and failure-recovery overhead. A longer eager sanity run measured
+9,839 tokens/s. The budget is based on measured training work, not the Spark's advertised
+low-precision inference peak.
 
-## Planned milestones
+The first full 304M sanity run then processed **8,388,608 non-repeated FineWeb-Edu tokens** at an
+average **9,839 tokens/s**. Training loss fell from 10.60 to 7.49 and held-out validation loss fell
+from 8.56 at the first gate to 7.47 at completion. The raw record is in
+[`benchmarks/gb10_300m_sanity_2026-08-24.json`](benchmarks/gb10_300m_sanity_2026-08-24.json).
 
-1. Define configuration objects and project layout.
-2. Train or select a tokenizer.
-3. Build deterministic token shards and a resumable data loader.
-4. Implement embeddings, normalization, rotary positions, attention, MLP, and Transformer blocks.
-5. Assemble the causal language model and verify its loss on a tiny batch.
-6. Implement optimization, logging, evaluation, and checkpoint/resume.
-7. Overfit a tiny dataset as an end-to-end correctness test.
-8. Benchmark several model sizes on the DGX Spark.
-9. Pretrain the selected model.
-10. Add supervised fine-tuning and local inference.
+## Architecture
 
-## Likely model design
+The main config in [`configs/spark_300m.toml`](configs/spark_300m.toml) uses:
 
-The first serious configuration will probably use RMSNorm, rotary position embeddings,
-grouped-query causal attention, SwiGLU feed-forward layers, tied input/output embeddings, and
-PyTorch scaled-dot-product attention. These are design intentions, not committed decisions.
+- 24 decoder blocks, width 1,024, and SwiGLU width 2,816
+- 16 query heads and 4 key/value heads (grouped-query attention)
+- rotary position embeddings and a 2,048-token context
+- RMSNorm, no linear biases, and tied token/output embeddings
+- PyTorch scaled-dot-product causal attention
+- a 32,768-token SentencePiece BPE vocabulary
 
-## Data and evaluation principles
+Run parameter accounting without allocating the model:
 
-- Keep training data, checkpoints, credentials, and generated artifacts out of Git.
-- Record dataset sources, versions, licenses, filters, and token counts.
-- Create validation and test sets before training.
-- Check for evaluation contamination and duplicate documents.
-- Begin with tiny fixtures before downloading or processing a large corpus.
-- Treat a model fitting in memory and a model being trainable in the available time as separate
-  questions.
+```bash
+spark-gpt inspect --config configs/spark_300m.toml
+spark-gpt inspect --config configs/spark_8b_sanity.toml
+```
 
-## Development rule
+## Quick start
 
-Implementation is added incrementally by the repository owner. AI assistance may explain,
-review, debug, or implement a component only when explicitly requested.
+Python 3.11+ and a CUDA-enabled PyTorch build are required for serious training. On DGX Spark,
+start from NVIDIA's supported PyTorch environment, then install this package:
+
+```bash
+git clone https://github.com/cuber-1/spark-gpt.git
+cd spark-gpt
+python -m pip install -e ".[data,dev]"
+spark-gpt doctor
+python -m unittest discover -s tests -v
+```
+
+Run the tiny end-to-end GPU exercise:
+
+```bash
+spark-gpt prepare \
+  --input examples/tiny_corpus.txt \
+  --output data/demo \
+  --tokenizer byte \
+  --val-fraction 0.25
+spark-gpt train --config configs/smoke.toml
+spark-gpt generate \
+  --config configs/smoke.toml \
+  --checkpoint runs/smoke/best.pt \
+  --prompt "Spark is" \
+  --max-new-tokens 80
+```
+
+The included smoke run has already been exercised on the GB10: training loss moved from 5.48 to
+2.71 in 40 steps, with held-out validation loss 3.05.
+
+## Preparing real data
+
+SparkGPT accepts UTF-8 text (one document per non-empty line) or JSONL (one document per row). The
+split is performed at document level using a stable hash so a document cannot leak between train
+and validation.
+
+```bash
+# Train a 32K BPE on a representative, licensed sample.
+spark-gpt train-tokenizer \
+  --input data/tokenizer_sample.txt \
+  --output-prefix tokenizers/spark-32k \
+  --vocab-size 32768
+
+# Pack local text or JSONL into memory-mapped uint16 token IDs.
+spark-gpt prepare \
+  --input data/corpus/*.jsonl \
+  --output data/fineweb_edu \
+  --tokenizer tokenizers/spark-32k.model \
+  --jsonl-field text \
+  --val-fraction 0.002
+```
+
+For the week-long FineWeb-Edu run, use the resumable pinned-snapshot workflow rather than a live
+network stream:
+
+```bash
+python scripts/download_fineweb.py
+python scripts/prepare_fineweb.py \
+  --tokenizer tokenizers/spark-32k.model \
+  --local-parquet-root data/source/fineweb-edu-10BT/sample/10BT \
+  --output data/fineweb_edu \
+  --revision 87f09149ef4734204d70ed1d046ddc9ca3f2b8f9 \
+  --max-tokens 4600000000
+```
+
+Do not treat a dataset name as a license. Pin the dataset revision, save its manifest, record every
+filter, and review terms before publishing weights. See [`docs/data.md`](docs/data.md).
+
+## Train, benchmark, and resume
+
+On the GB10, compiled training needs Python development headers and CUDA 13's assembler. Confirm
+that `Python.h` is installed, then point Triton at the system CUDA toolkit before benchmarking:
+
+```bash
+export TRITON_PTXAS_PATH=/usr/local/cuda/bin/ptxas
+```
+
+```bash
+# Re-measure this exact machine before locking the token budget.
+spark-gpt benchmark \
+  --config configs/spark_300m.toml \
+  --batch-size 8 \
+  --sequence-length 2048 \
+  --compile
+
+# Main run (about 4.5B tokens with the checked-in config).
+spark-gpt train --config configs/spark_300m.toml
+
+# DGX Spark launcher: selects CUDA 13 ptxas and resumes last.pt after transient failures.
+SPARKGPT_PYTHON=/path/to/cuda-pytorch/bin/python scripts/run_spark_300m.sh
+
+# Checkpoints include model, optimizer, RNG, config, and data-sampler state.
+spark-gpt train \
+  --config configs/spark_300m.toml \
+  --resume runs/spark-300m/last.pt
+```
+
+Metrics are appended to `runs/<name>/metrics.jsonl`. Checkpoints are written to a temporary file
+and atomically renamed, so an interruption cannot leave a half-written `last.pt`.
+
+## The 8B lane
+
+[`configs/spark_8b_sanity.toml`](configs/spark_8b_sanity.toml) proves the architecture math without
+allocating anything via `spark-gpt inspect`. It is not a training recommendation: compute-optimal
+8B pretraining is on the order of 160B tokens, and full AdamW state plus activations creates a poor
+fit for the 128GB coherent-memory budget.
+
+For a useful one-week 8B result, adapt a compatible, openly licensed pretrained base with LoRA,
+targeting 10–50M curated instruction tokens or 100–500M domain continued-pretraining tokens. The
+base revision, data terms, adapter configuration, and before/after evaluation must all be recorded.
+
+## Correctness and reproducibility
+
+The test suite covers:
+
+- exact analytical versus instantiated parameter counts
+- finite forward/backward gradients and tied embeddings
+- no future-token leakage through causal attention
+- deterministic document splitting and next-token alignment
+- checkpoint restoration of weights, optimizer, training RNGs, and both sampler positions
+
+Each run writes the full config, parameter count, Git commit, PyTorch version, and device name.
+See [`docs/training-plan.md`](docs/training-plan.md) for the seven-day gate and acceptance criteria.
 
 ## References
 
-- [NVIDIA DGX Spark documentation](https://docs.nvidia.com/dgx/dgx-spark/)
-- [FineWeb-Edu dataset](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu)
+- [NVIDIA DGX Spark specifications](https://www.nvidia.com/en-us/products/workstations/dgx-spark/)
+- [PyTorch scaled dot product attention](https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html)
 - [Training Compute-Optimal Large Language Models](https://arxiv.org/abs/2203.15556)
-- [Attention Is All You Need](https://arxiv.org/abs/1706.03762)
+- [The FineWeb Datasets](https://arxiv.org/abs/2406.17557)
+- [LoRA](https://arxiv.org/abs/2106.09685)
+- [NanoGPT](https://github.com/karpathy/nanoGPT)
+
+## License
+
+Code is released under the [MIT License](LICENSE). Dataset licenses, tokenizer training material,
+and model weights are separate artifacts and are not covered by the code license.

@@ -1,0 +1,36 @@
+# Short, no-repeat 304M data/loss gate using about 8.4M FineWeb-Edu tokens.
+[model]
+vocab_size = 32768
+context_length = 2048
+n_layer = 24
+n_head = 16
+n_kv_head = 4
+n_embd = 1024
+intermediate_size = 2816
+dropout = 0.0
+rope_theta = 10000.0
+norm_eps = 1e-5
+bias = false
+tie_embeddings = true
+
+[training]
+data_dir = "data/fineweb_sanity"
+out_dir = "runs/spark-300m-sanity"
+seed = 1337
+device = "cuda"
+dtype = "bfloat16"
+compile = false
+batch_size = 8
+gradient_accumulation_steps = 16
+max_steps = 32
+learning_rate = 0.0003
+min_lr = 0.00003
+warmup_steps = 4
+weight_decay = 0.1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+eval_interval = 8
+eval_batches = 4
+log_interval = 1
+checkpoint_interval = 8

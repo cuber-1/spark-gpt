@@ -1,0 +1,15 @@
+{
+  "date": "2026-08-24",
+  "command": "spark-gpt benchmark --config configs/spark_300m.toml --batch-size 8 --sequence-length 2048 --warmup-steps 1 --steps 3",
+  "parameters": 304137216,
+  "batch_size": 8,
+  "sequence_length": 2048,
+  "steps": 3,
+  "seconds_per_step": 1.694947123332895,
+  "tokens_per_second": 9666.378245347842,
+  "estimated_training_tflops": 17.639432210058345,
+  "peak_memory_bytes": 34323986944,
+  "torch": "2.13.0+cu130",
+  "device": "NVIDIA GB10",
+  "notes": "Synthetic token IDs, BF16, eager PyTorch, forward/backward/AdamW; excludes input and evaluation overhead."
+}

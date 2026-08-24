@@ -13,10 +13,13 @@ data/
 artifacts/
 runs/
 checkpoints/
+tokenizers/
 *.bin
 *.pt
 *.pth
 *.safetensors
+*.model
+*.vocab
 
 # Credentials and local configuration
 .env
